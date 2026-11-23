@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Render the 23 November 2026 world-news summary image.
 
 This builder runs at development time only (it uses Pillow). It draws a

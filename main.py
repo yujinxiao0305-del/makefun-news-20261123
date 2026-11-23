@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """make.fun entry: one image summing up 23 November 2026 world news.
 
 Standard library only. The picture itself was drawn ahead of time by
