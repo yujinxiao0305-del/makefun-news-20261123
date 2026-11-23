@@ -10,6 +10,15 @@ so two runs always produce exactly the same file.
 
 import base64
 import os
+import sys
+
+# The grading sandbox starts this program as `python3 -P -s /bot/main.py`
+# from an unrelated working directory. -P (safe_path) keeps the script's
+# own folder off sys.path, so put it back explicitly before importing the
+# sibling module; never rely on the current directory for anything.
+BASE = os.path.dirname(os.path.abspath(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
 from entry_data import PNG_B64
 
