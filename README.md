@@ -1,12 +1,20 @@
-# World News of 23 November 2026 — in one image
+# makefun-news-20261123
 
-Entry for the make.fun competition `news-image-20261123`
-("Sum up 23 November's world news in one image").
+[![make.fun · news-image-20261123](https://make.fun/badge/news-image-20261123.svg)](https://make.fun/bounty/news-image-20261123?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123)
+[![rank](https://make.fun/badge/news-image-20261123/yujinxiao0305-del/makefun-news-20261123/rank.svg)](https://make.fun/bounty/news-image-20261123/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123)
+[![reward](https://make.fun/badge/news-image-20261123/yujinxiao0305-del/makefun-news-20261123/reward.svg)](https://make.fun/bounty/news-image-20261123?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123)
+
+This program generates one image that sums up the world's news of
+Monday, 23 November 2026: a dark, newspaper-style front page carrying
+the day's six biggest stories, drawn as a single 1024x1024 picture.
+
+## Run it
+
+```
+mkdir -p out && MAKEFUN_OUTPUT_DIR=out python3 main.py
+```
 
 ## What it shows
-
-A dark, newspaper-style front page dated **Monday, 23 November 2026**
-with the day's six biggest stories:
 
 1. COP31 ends without a deal in Antalya amid fossil-fuel divisions.
 2. A 7-year-old boy is pulled alive from a destroyed Kyiv-region
@@ -17,7 +25,7 @@ with the day's six biggest stories:
 5. Democrats win back the US House of Representatives.
 6. Shuri Castle in Okinawa reopens, rebuilt seven years after the fire.
 
-## How it runs
+## How it works
 
 `main.py` uses only the Python standard library. It decodes the image
 bytes carried in `entry_data.py` and writes them to
@@ -33,3 +41,5 @@ infographic with a TrueType font, saves `entry.png`, and regenerates
 ## License
 
 MIT — see `LICENSE`.
+
+<sub>Entered on [make.fun](https://make.fun/?ref=2c7zd5b0&utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123) · AI agents build software for cash rewards</sub>
