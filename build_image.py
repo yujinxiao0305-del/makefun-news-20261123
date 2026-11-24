@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Render v2 of the 23 November 2026 world-news summary image.
+"""Render v3 of the 23 November 2026 world-news summary image.
 
-Development-time builder (uses Pillow). Layout: a compact masthead with
-a big date, one dominant hero story (the AI stock sell-off) with a bar
-chart of the index drops, a dotted world map built from latitude-band
-land spans marking where each story happened, and five compact numbered
-story cards. It saves entry.png and rewrites entry_data.py with the PNG
-as base64 text, so the shipped entrypoint main.py needs only the
-Python standard library.
+Development-time builder (uses Pillow). Layout: a compressed masthead,
+the date as its own high-contrast badge, then three tiers — two hero
+stories (the Kyiv rescue and the AI stock sell-off), two mid stories
+(COP31, US-Iran) and two small ones (the House, Shuri Castle). Every
+story carries its own drawn icon and exactly one event phrase plus one
+hard number or result; there are no summary sentences. A dotted world
+map sits behind everything as a faint texture only. The builder saves
+entry.png and rewrites entry_data.py as base64 text, so the shipped
+entrypoint main.py needs only the Python standard library.
 """
 
 import base64
@@ -22,15 +24,15 @@ FONT_DIR = "/usr/share/fonts/truetype/liberation"
 W = 1024
 H = 1024
 
-INK = (14, 18, 22)
-PANEL = (26, 33, 42)
+INK = (13, 17, 21)
+PANEL = (25, 32, 41)
 PANEL_EDGE = (58, 70, 84)
-PAPER = (240, 242, 244)
-SOFT = (183, 192, 203)
+PAPER = (242, 244, 246)
+SOFT = (186, 195, 206)
 FAINT = (118, 130, 144)
-RED = (226, 64, 54)
-LAND = (84, 104, 126)
-OCEAN_DOT = (30, 40, 52)
+RED = (228, 60, 50)
+TEXTURE = (23, 30, 39)
+GOLD = (240, 190, 60)
 
 MARGIN = 36
 
@@ -39,22 +41,19 @@ def font(name, size):
     return ImageFont.truetype(os.path.join(FONT_DIR, name), size)
 
 
-F_TITLE = font("LiberationSerif-Bold.ttf", 56)
-F_DATE = font("LiberationSans-Bold.ttf", 31)
-F_DATE_SMALL = font("LiberationSans-Bold.ttf", 19)
-F_HERO_TAG = font("LiberationSans-Bold.ttf", 21)
-F_HERO_HEAD = font("LiberationSans-Bold.ttf", 54)
-F_HERO_BODY = font("LiberationSans-Regular.ttf", 25)
-F_CHART_LABEL = font("LiberationSans-Bold.ttf", 23)
-F_CHART_VALUE = font("LiberationSans-Bold.ttf", 27)
-F_CHART_TITLE = font("LiberationSans-Bold.ttf", 19)
-F_GOLD = font("LiberationSans-Bold.ttf", 19)
-F_MAP_TITLE = font("LiberationSans-Bold.ttf", 20)
-F_NUM = font("LiberationSans-Bold.ttf", 18)
-F_CARD_TAG = font("LiberationSans-Bold.ttf", 17)
-F_CARD_HEAD = font("LiberationSans-Bold.ttf", 27)
-F_CARD_BODY = font("LiberationSans-Regular.ttf", 18)
-F_FOOT = font("LiberationSans-Regular.ttf", 17)
+F_TITLE = font("LiberationSerif-Bold.ttf", 37)
+F_KICKER = font("LiberationSans-Bold.ttf", 19)
+F_BADGE = font("LiberationSans-Bold.ttf", 27)
+F_TAG = font("LiberationSans-Bold.ttf", 19)
+F_HERO_HEAD = font("LiberationSans-Bold.ttf", 43)
+F_HERO_RESULT = font("LiberationSans-Bold.ttf", 24)
+F_MID_HEAD = font("LiberationSans-Bold.ttf", 33)
+F_MID_RESULT = font("LiberationSans-Bold.ttf", 21)
+F_LOW_HEAD = font("LiberationSans-Bold.ttf", 29)
+F_LOW_RESULT = font("LiberationSans-Bold.ttf", 19)
+F_CHART_LABEL = font("LiberationSans-Bold.ttf", 21)
+F_CHART_VALUE = font("LiberationSans-Bold.ttf", 25)
+F_FOOT = font("LiberationSans-Regular.ttf", 16)
 
 
 def wrap(draw, text, fnt, max_width):
@@ -73,54 +72,10 @@ def wrap(draw, text, fnt, max_width):
     return lines
 
 
-# ---------------------------------------------------------------- hero
+# ------------------------------------------------------- faint map texture
 
-def draw_hero(draw, x, y, w, h):
-    draw.rounded_rectangle([x, y, x + w, y + h], radius=16,
-                           fill=PANEL, outline=PANEL_EDGE, width=2)
-    cx = x + 26
-    cy = y + 20
-    draw.rounded_rectangle([cx, cy + 2, cx + 15, cy + 19], radius=3, fill=RED)
-    draw.text((cx + 25, cy), "3 · MARKETS — THE DAY'S BIGGEST STORY",
-              font=F_HERO_TAG, fill=RED)
-    cy += 34
-    for line in ["AI Stock Sell-Off", "Shakes World", "Markets"]:
-        draw.text((cx, cy), line, font=F_HERO_HEAD, fill=PAPER)
-        cy += 60
-    cy += 6
-    for line in wrap(draw, "Investors flee AI bets as tech shares tumble "
-                           "and gold jumps.", F_HERO_BODY, 500):
-        draw.text((cx, cy), line, font=F_HERO_BODY, fill=SOFT)
-        cy += 31
-
-    # bar chart of the index drops, right-hand zone
-    gx = x + 612
-    gy = y + 52
-    draw.text((gx, gy), "THE DAY'S DROP", font=F_CHART_TITLE, fill=FAINT)
-    gy += 32
-    scale = 42.0  # pixels per percentage point
-    rows = [("NIKKEI 225", -5.1, (226, 64, 54)),
-            ("S&P 500", -3.7, (240, 140, 60))]
-    for label, value, color in rows:
-        draw.text((gx, gy), label, font=F_CHART_LABEL, fill=PAPER)
-        gy += 30
-        bar_w = int(abs(value) * scale)
-        draw.rounded_rectangle([gx, gy, gx + bar_w, gy + 25], radius=5,
-                               fill=color)
-        draw.text((gx + bar_w + 12, gy - 3), "%.1f%%" % value,
-                  font=F_CHART_VALUE, fill=color)
-        gy += 46
-    gy += 4
-    draw.rounded_rectangle([gx, gy, gx + 314, gy + 42], radius=8,
-                           outline=(240, 190, 60), width=2)
-    draw.text((gx + 15, gy + 10), "GOLD  ▲  safe-haven rush",
-              font=F_GOLD, fill=(240, 190, 60))
-
-
-# ----------------------------------------------------------------- map
-
-# Land as longitude spans per latitude band (26 bands, centres from
-# about +75 to about -55 degrees). Stylised but geographically placed.
+# Land as longitude spans per latitude band (26 bands). In v3 this map
+# is only a background texture: no markers, no labels, no information.
 LAND_SPANS = [
     [(-125, -105), (-95, -82), (-45, -30), (45, 60), (75, 105), (120, 150), (160, 178)],
     [(-140, -95), (-90, -80), (-50, -35), (18, 32), (38, 178)],
@@ -150,133 +105,254 @@ LAND_SPANS = [
     [(-68, -64)],
 ]
 
-MAP_LON0, MAP_LON1 = -170.0, 190.0
-MAP_LAT0, MAP_LAT1 = 78.0, -58.0
-MAP_ROWS = len(LAND_SPANS)
-MAP_COLS = 104
 
-# number, lon, lat, colour, pixel nudge (dx, dy) to separate near markers
-MARKERS = [
-    (1, 30.7, 36.9, (64, 190, 120), (-7, 7)),     # Antalya — COP31
-    (2, 30.5, 50.4, (240, 180, 60), (0, -5)),     # Kyiv region
-    (3, 139.7, 35.7, (226, 64, 54), (0, 0)),      # Tokyo — Nikkei
-    (4, 51.4, 35.7, (235, 110, 80), (0, 0)),      # Tehran
-    (5, -77.0, 38.9, (170, 130, 240), (5, -8)),   # Washington DC
-    (6, 127.8, 26.3, (240, 120, 170), (0, 0)),    # Okinawa — Shuri Castle
-]
+def draw_texture(draw):
+    cols = 118
+    rows = len(LAND_SPANS)
+    cell_x = W / cols
+    cell_y = H / rows
+    for r, spans in enumerate(LAND_SPANS):
+        land_cols = set()
+        for lon_a, lon_b in spans:
+            c0 = int((lon_a + 170) / 360 * cols)
+            c1 = int((lon_b + 170) / 360 * cols)
+            land_cols.update(range(max(0, c0), min(cols, c1 + 1)))
+        for c in land_cols:
+            px = c * cell_x + cell_x / 2
+            py = r * cell_y + cell_y / 2
+            draw.ellipse([px - 2.4, py - 2.4, px + 2.4, py + 2.4],
+                         fill=TEXTURE)
 
 
-def draw_map(draw, x, y, w, h):
+# ------------------------------------------------------------------ icons
+# Each icon is drawn with plain PIL lines/shapes inside an s-by-s box at
+# (x, y), in the story's accent colour.
+
+def icon_building(draw, x, y, s, color):
+    """Apartment block split by a crack, with a heart: the rescue."""
+    w = 5
+    bx, by, bw, bh = x + s * 0.14, y + s * 0.08, s * 0.54, s * 0.84
+    draw.rectangle([bx, by, bx + bw, by + bh], outline=color, width=w)
+    crack = [(bx + bw * 0.58, by), (bx + bw * 0.44, by + bh * 0.30),
+             (bx + bw * 0.60, by + bh * 0.55), (bx + bw * 0.46, by + bh)]
+    draw.line(crack, fill=color, width=4, joint="curve")
+    for r in range(3):
+        for c in range(2):
+            wx = bx + 9 + c * (bw / 2 - 4)
+            wy = by + 11 + r * (bh - 28) / 2
+            draw.rectangle([wx, wy, wx + 10, wy + 12], outline=color, width=3)
+    hx, hy = x + s * 0.84, y + s * 0.50
+    draw.polygon([(hx, hy + 16), (hx - 15, hy), (hx - 5, hy - 11),
+                  (hx, hy - 4), (hx + 5, hy - 11), (hx + 15, hy)],
+                 fill=RED)
+
+
+def icon_crash(draw, x, y, s, color):
+    """A plunging zigzag line with an arrowhead: the sell-off."""
+    w = 6
+    pts = [(x + s * 0.06, y + s * 0.18), (x + s * 0.34, y + s * 0.40),
+           (x + s * 0.52, y + s * 0.26), (x + s * 0.88, y + s * 0.78)]
+    draw.line(pts, fill=color, width=w, joint="curve")
+    ex, ey = pts[-1]
+    draw.polygon([(ex, ey), (ex - 20, ey - 4), (ex - 4, ey - 20)], fill=color)
+    draw.line([x + s * 0.06, y + s * 0.92, x + s * 0.94, y + s * 0.92],
+              fill=color, width=3)
+
+
+def icon_globe(draw, x, y, s, color):
+    """A globe with meridians: the climate talks."""
+    w = 4
+    cx, cy, r = x + s / 2, y + s / 2, s * 0.40
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=color, width=w)
+    draw.ellipse([cx - r * 0.45, cy - r, cx + r * 0.45, cy + r],
+                 outline=color, width=3)
+    draw.line([cx - r, cy, cx + r, cy], fill=color, width=3)
+    draw.arc([cx - r, cy - r * 0.55, cx + r, cy + r * 0.75], 0, 180,
+             fill=color, width=3)
+    draw.arc([cx - r, cy - r * 0.75, cx + r, cy + r * 0.55], 180, 360,
+             fill=color, width=3)
+
+
+def icon_clash(draw, x, y, s, color):
+    """Two arrows driving at each other with a burst: the standoff."""
+    w = 6
+    my = y + s * 0.50
+    draw.line([x + s * 0.05, my, x + s * 0.40, my], fill=color, width=w)
+    draw.polygon([(x + s * 0.52, my), (x + s * 0.36, my - 11),
+                  (x + s * 0.36, my + 11)], fill=color)
+    draw.line([x + s * 0.95, my, x + s * 0.60, my], fill=color, width=w)
+    draw.polygon([(x + s * 0.48, my), (x + s * 0.64, my - 11),
+                  (x + s * 0.64, my + 11)], fill=color)
+    for dx, dy in [(-16, -22), (0, -28), (16, -22), (-16, 22), (0, 28), (16, 22)]:
+        draw.line([x + s / 2 + dx * 0.4, my + dy * 0.4,
+                   x + s / 2 + dx, my + dy], fill=GOLD, width=4)
+
+
+def icon_capitol(draw, x, y, s, color):
+    """A dome on columns: the House of Representatives."""
+    w = 4
+    cx = x + s / 2
+    draw.arc([cx - s * 0.26, y + s * 0.16, cx + s * 0.26, y + s * 0.62],
+             180, 360, fill=color, width=w)
+    draw.line([cx, y + s * 0.06, cx, y + s * 0.18], fill=color, width=w)
+    draw.line([x + s * 0.14, y + s * 0.46, x + s * 0.86, y + s * 0.46],
+              fill=color, width=w)
+    for fx in (0.24, 0.42, 0.58, 0.76):
+        draw.line([x + s * fx, y + s * 0.52, x + s * fx, y + s * 0.82],
+                  fill=color, width=w)
+    draw.line([x + s * 0.10, y + s * 0.88, x + s * 0.90, y + s * 0.88],
+              fill=color, width=w)
+
+
+def icon_castle(draw, x, y, s, color):
+    """Tiered castle roofs: Shuri Castle."""
+    w = 4
+    cx = x + s / 2
+    tiers = [(0.30, 0.30, 0.16), (0.52, 0.52, 0.20), (0.74, 0.74, 0.24)]
+    for top, width_f, height_f in tiers:
+        ty = y + s * top
+        hw = s * width_f / 2
+        draw.polygon([(cx - hw, ty), (cx, ty - s * height_f * 0.55),
+                      (cx + hw, ty)], outline=color, width=w)
+        draw.line([cx - hw * 0.62, ty, cx - hw * 0.62, ty + s * 0.10],
+                  fill=color, width=w)
+        draw.line([cx + hw * 0.62, ty, cx + hw * 0.62, ty + s * 0.10],
+                  fill=color, width=w)
+    draw.line([cx - s * 0.30, y + s * 0.92, cx + s * 0.30, y + s * 0.92],
+              fill=color, width=w)
+
+
+# ----------------------------------------------------------------- panels
+
+def panel(draw, x, y, w, h):
     draw.rounded_rectangle([x, y, x + w, y + h], radius=16,
                            fill=PANEL, outline=PANEL_EDGE, width=2)
-    draw.text((x + 26, y + 15), "WHERE IT HAPPENED — SIX STORIES, SIX PLACES",
-              font=F_MAP_TITLE, fill=SOFT)
-    mx = x + 30
-    my = y + 50
-    mw = w - 60
-    mh = h - 50 - 12
-    cell_x = mw / MAP_COLS
-    cell_y = mh / MAP_ROWS
-    land = [[False] * MAP_COLS for _ in range(MAP_ROWS)]
-    for r, spans in enumerate(LAND_SPANS):
-        for lon_a, lon_b in spans:
-            c0 = int((lon_a - MAP_LON0) / (MAP_LON1 - MAP_LON0) * MAP_COLS)
-            c1 = int((lon_b - MAP_LON0) / (MAP_LON1 - MAP_LON0) * MAP_COLS)
-            for c in range(max(0, c0), min(MAP_COLS, c1 + 1)):
-                land[r][c] = True
-    for r in range(MAP_ROWS):
-        for c in range(MAP_COLS):
-            px = mx + c * cell_x + cell_x / 2
-            py = my + r * cell_y + cell_y / 2
-            if land[r][c]:
-                draw.ellipse([px - 2.7, py - 2.7, px + 2.7, py + 2.7],
-                             fill=LAND)
-            else:
-                draw.ellipse([px - 1.0, py - 1.0, px + 1.0, py + 1.0],
-                             fill=OCEAN_DOT)
-    for num, lon, lat, color, (dx, dy) in MARKERS:
-        px = mx + (lon - MAP_LON0) / (MAP_LON1 - MAP_LON0) * mw + dx
-        py = my + (MAP_LAT0 - lat) / (MAP_LAT0 - MAP_LAT1) * mh + dy
-        draw.ellipse([px - 13, py - 13, px + 13, py + 13], fill=color,
-                     outline=PAPER, width=2)
-        draw.text((px, py - 9), str(num), font=F_NUM, fill=(16, 20, 24),
-                  anchor="ma")
 
 
-# ---------------------------------------------------------------- cards
-
-CARDS = [
-    {"num": 1, "tag": "CLIMATE · ANTALYA", "color": (64, 190, 120),
-     "headline": "COP31 Ends Without a Deal",
-     "body": "Stalled over fossil fuels."},
-    {"num": 2, "tag": "UKRAINE · KYIV REGION", "color": (240, 180, 60),
-     "headline": "Boy, 7, Pulled Alive From Rubble",
-     "body": "Destroyed by a Russian strike."},
-    {"num": 4, "tag": "MIDDLE EAST · US-IRAN", "color": (235, 110, 80),
-     "headline": "US-Iran Standoff Deepens",
-     "body": "Tehran's terms: \"unacceptable\"."},
-    {"num": 5, "tag": "US POLITICS · WASHINGTON", "color": (170, 130, 240),
-     "headline": "Democrats Win Back the House",
-     "body": "Their largest House majority in decades."},
-    {"num": 6, "tag": "JAPAN · OKINAWA", "color": (240, 120, 170),
-     "headline": "Shuri Castle Reopens After 7 Years",
-     "body": "Beloved landmark rebuilt after the fire."},
-]
+def tag_row(draw, x, y, color, tag):
+    draw.rounded_rectangle([x, y + 2, x + 15, y + 19], radius=3, fill=color)
+    draw.text((x + 25, y), tag, font=F_TAG, fill=color)
 
 
-def draw_card(draw, x, y, w, h, card):
-    draw.rounded_rectangle([x, y, x + w, y + h], radius=14,
-                           fill=PANEL, outline=PANEL_EDGE, width=2)
-    cx = x + 18
-    cy = y + 12
-    color = card["color"]
-    draw.ellipse([cx, cy, cx + 24, cy + 24], fill=color)
-    draw.text((cx + 12, cy + 2), str(card["num"]), font=F_NUM,
-              fill=(16, 20, 24), anchor="ma")
-    draw.text((cx + 34, cy + 2), card["tag"], font=F_CARD_TAG, fill=color)
-    cy += 32
-    for line in wrap(draw, card["headline"], F_CARD_HEAD, w - 36)[:2]:
-        draw.text((cx, cy), line, font=F_CARD_HEAD, fill=PAPER)
-        cy += 33
-    draw.text((cx, cy + 2), card["body"], font=F_CARD_BODY, fill=SOFT)
+def draw_hero_kyiv(draw, x, y, w, h):
+    color = (240, 180, 60)
+    panel(draw, x, y, w, h)
+    icon_building(draw, x + w - 128, y + 18, 104, color)
+    cx = x + 24
+    tag_row(draw, cx, y + 20, color, "UKRAINE · KYIV REGION")
+    cy = y + 58
+    for line in wrap(draw, "Boy, 7, Pulled Alive From Rubble",
+                     F_HERO_HEAD, w - 170):
+        draw.text((cx, cy), line, font=F_HERO_HEAD, fill=PAPER)
+        cy += 52
+    result = "APARTMENT BLOCK DESTROYED"
+    chip_w = int(draw.textlength(result, font=F_HERO_RESULT)) + 32
+    draw.rounded_rectangle([cx, y + h - 62, cx + chip_w, y + h - 18],
+                           radius=9, outline=color, width=2)
+    draw.text((cx + 16, y + h - 52), result, font=F_HERO_RESULT, fill=color)
 
 
-# ---------------------------------------------------------------- page
+def draw_hero_markets(draw, x, y, w, h):
+    # This story's visual symbol is the drop chart itself (bars below),
+    # so the headline gets the panel's full width instead of an icon box.
+    color = RED
+    panel(draw, x, y, w, h)
+    cx = x + 24
+    tag_row(draw, cx, y + 20, color, "MARKETS · GLOBAL")
+    cy = y + 58
+    for line in wrap(draw, "AI Stock Sell-Off Shakes Markets",
+                     F_HERO_HEAD, w - 48):
+        draw.text((cx, cy), line, font=F_HERO_HEAD, fill=PAPER)
+        cy += 52
+    gy = y + h - 118
+    scale = 40.0
+    for label, value, bar_color in [("NIKKEI", -5.1, (226, 64, 54)),
+                                    ("S&P 500", -3.7, (240, 140, 60))]:
+        draw.text((cx, gy), label, font=F_CHART_LABEL, fill=PAPER)
+        bar_x = cx + 118
+        bar_w = int(abs(value) * scale)
+        draw.rounded_rectangle([bar_x, gy + 1, bar_x + bar_w, gy + 23],
+                               radius=5, fill=bar_color)
+        draw.text((bar_x + bar_w + 10, gy - 2), "%.1f%%" % value,
+                  font=F_CHART_VALUE, fill=bar_color)
+        gy += 34
+    draw.text((cx, gy + 2), "GOLD  ▲  JUMPS", font=F_CHART_LABEL, fill=GOLD)
+
+
+def draw_mid(draw, x, y, w, h, icon, color, tag, headline, result):
+    panel(draw, x, y, w, h)
+    icon(draw, x + w - 104, y + 16, 82, color)
+    cx = x + 24
+    tag_row(draw, cx, y + 18, color, tag)
+    cy = y + 54
+    for line in wrap(draw, headline, F_MID_HEAD, w - 150):
+        draw.text((cx, cy), line, font=F_MID_HEAD, fill=PAPER)
+        cy += 41
+    draw.text((cx, y + h - 44), result, font=F_MID_RESULT, fill=color)
+
+
+def draw_low(draw, x, y, w, h, icon, color, tag, headline, result):
+    panel(draw, x, y, w, h)
+    icon(draw, x + 22, y + 18, 76, color)
+    cx = x + 118
+    tag_row(draw, cx, y + 18, color, tag)
+    cy = y + 52
+    for line in wrap(draw, headline, F_LOW_HEAD, w - 142):
+        draw.text((cx, cy), line, font=F_LOW_HEAD, fill=PAPER)
+        cy += 37
+    draw.text((cx, y + h - 42), result, font=F_LOW_RESULT, fill=color)
+
+
+# ------------------------------------------------------------------- page
 
 def render():
     img = Image.new("RGB", (W, H), INK)
     draw = ImageDraw.Draw(img)
+    draw_texture(draw)
 
-    draw.rectangle([0, 0, W, 8], fill=RED)
-    draw.text((MARGIN, 24), "THE WORLD TODAY", font=F_TITLE, fill=PAPER)
-    draw.text((W - MARGIN, 28), "MONDAY", font=F_DATE_SMALL, fill=FAINT,
-              anchor="ra")
-    draw.text((W - MARGIN, 50), "23 NOVEMBER 2026", font=F_DATE, fill=RED,
-              anchor="ra")
-    draw.line([MARGIN, 112, W - MARGIN, 112], fill=PANEL_EDGE, width=2)
+    # compressed masthead: one line, content gets the rest of the page
+    draw.text((MARGIN, 20), "THE WORLD TODAY", font=F_TITLE, fill=PAPER)
+    draw.text((W - MARGIN, 30), "ONE DAY · SIX STORIES", font=F_KICKER,
+              fill=FAINT, anchor="ra")
 
-    draw_hero(draw, MARGIN, 126, W - 2 * MARGIN, 312)
-    draw_map(draw, MARGIN, 452, W - 2 * MARGIN, 216)
+    # the date as its own high-contrast badge, clear of the masthead
+    badge_text = "MONDAY · 23 NOVEMBER 2026"
+    bw = int(draw.textlength(badge_text, font=F_BADGE)) + 44
+    draw.rounded_rectangle([MARGIN, 76, MARGIN + bw, 124], radius=12,
+                           fill=RED)
+    draw.text((MARGIN + 22, 87), badge_text, font=F_BADGE,
+              fill=(255, 255, 255))
 
-    top = 682
-    row_h = 138
-    gap = 14
-    widths_top = [(W - 2 * MARGIN - 2 * gap) // 3] * 3
-    x = MARGIN
-    for card, cw in zip(CARDS[:3], widths_top):
-        draw_card(draw, x, top, cw, row_h, card)
-        x += cw + gap
-    widths_bottom = [(W - 2 * MARGIN - gap) // 2] * 2
-    x = MARGIN
-    for card, cw in zip(CARDS[3:], widths_bottom):
-        draw_card(draw, x, top + row_h + gap, cw, row_h, card)
-        x += cw + gap
+    # tier 1: the two hero stories
+    hero_y, hero_h = 146, 330
+    half = (W - 2 * MARGIN - 18) // 2
+    draw_hero_kyiv(draw, MARGIN, hero_y, half, hero_h)
+    draw_hero_markets(draw, MARGIN + half + 18, hero_y, half, hero_h)
 
-    draw.text((MARGIN, H - 28),
+    # tier 2: COP31 and the US-Iran standoff
+    mid_y, mid_h = 494, 246
+    draw_mid(draw, MARGIN, mid_y, half, mid_h, icon_globe, (64, 190, 120),
+             "CLIMATE · ANTALYA", "COP31 Ends Without a Deal",
+             "2 WEEKS OF TALKS — NO AGREEMENT")
+    draw_mid(draw, MARGIN + half + 18, mid_y, half, mid_h, icon_clash,
+             (235, 110, 80), "MIDDLE EAST · US-IRAN",
+             "US-Iran Standoff Deepens",
+             "TEHRAN'S TERMS: \"UNACCEPTABLE\"")
+
+    # tier 3: the House and Shuri Castle, icon-led strips
+    low_y, low_h = 758, 196
+    draw_low(draw, MARGIN, low_y, half, low_h, icon_capitol,
+             (170, 130, 240), "US POLITICS · WASHINGTON",
+             "Democrats Win Back the House",
+             "LARGEST MAJORITY IN DECADES")
+    draw_low(draw, MARGIN + half + 18, low_y, half, low_h, icon_castle,
+             (240, 120, 170), "JAPAN · OKINAWA",
+             "Shuri Castle Reopens",
+             "7 YEARS AFTER THE FIRE")
+
+    draw.text((MARGIN, H - 26),
               "Compiled from news reports of 23 November 2026.",
               font=F_FOOT, fill=FAINT)
-    draw.text((W - MARGIN, H - 28), "23 NOV 2026", font=F_FOOT,
-              fill=FAINT, anchor="ra")
     return img
 
 
